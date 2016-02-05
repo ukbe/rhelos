@@ -19,7 +19,7 @@ parameters:
         - m1.small
         - m1.medium
         - m1.large
-    default: m1.tiny
+    default: m1.small
 
   rh_par_flavor_gl:
     type: string
@@ -31,7 +31,7 @@ parameters:
         - m1.small
         - m1.medium
         - m1.large
-    default: m1.tiny
+    default: m1.small
 
   rh_par_image:
     type: string
@@ -124,14 +124,15 @@ resources:
         str_replace:
           template: |
             #!/bin/bash -v
+            yum install -y epel-release
             yum update -y
-            wget -P /etc/yum.repos.d http://download.gluster.org/pub/gluster/glusterfs/LATEST/RHEL/glusterfs-epel.repo
+            yum install -y wget
+            wget -P /etc/yum.repos.d/ https://download.gluster.org/pub/gluster/glusterfs/LATEST/EPEL.repo/glusterfs-epel.repo
             yum install -y glusterfs-server
             mkdir /gluster_brick
-            gluster volume create rh-share replica 1 $INTERNAL_IP:/gluster_brick
+            gluster volume create rh-share $INTERNAL_IP:/gluster_brick force
             gluster volume start rh-share
           params:
-            $FQDN: { get_param: rh_par_fqdn }
             $INTERNAL_IP: {get_attr: rh_gluster_server, resource.server, first_address}
 
   rh_web_server_security_group:
@@ -197,15 +198,17 @@ resources:
         str_replace:
           template: |
             #!/bin/bash -v
+            yum install -y epel-release wget
             yum update -y
-            yum -y install glusterfs wget
-            mkdir -p /var/www/$FQDN/public_html
-            mount.glusterfs $GLUSTER_INTERNAL_IP:/rh-share /var/www/$FQDN/public_html
-            echo "$GLUSTER_INTERNAL_IP:/rh-share /var/www/$FQDN/public_html glusterfs defaults,_netdev 0 0"
-            wget https://github.com/ukbe/rhelos/raw/master/public_html.tar.gz -p /tmp
-            tar -xzvf /tmp/public_html.tar.gz -C /var/www/$FQDN/public_html
-            mv /var/www/$FQDN/public_html/public_html/* /var/www/$FQDN/public_html/
-            rm -rf /var/www/$FQDN/public_html/public_html
+            wget -P /etc/yum.repos.d/ https://download.gluster.org/pub/gluster/glusterfs/LATEST/EPEL.repo/glusterfs-epel.repo
+            yum -y install glusterfs
+            mkdir -p /var/www/test.com/public_html
+            mount.glusterfs 172.10.0.14:/rh-share /var/www/test.com/public_html
+            echo "172.10.0.14:/rh-share /var/www/test.com/public_html glusterfs defaults,_netdev 0 0"
+            wget -P /tmp/ https://github.com/ukbe/rhelos/raw/master/public_html.tar.gz
+            tar -xzvf /tmp/public_html.tar.gz -C /var/www/test.com/public_html
+            mv /var/www/test.com/public_html/public_html/* /var/www/test.com/public_html/
+            rm -rf /var/www/test.com/public_html/public_html
             chmod -R 755 /var/www
             mkdir /etc/httpd/sites-available
             mkdir /etc/httpd/sites-enabled
@@ -213,17 +216,14 @@ resources:
             yum install -y httpd mod_ssl
             /usr/sbin/apachectl start
             echo "<VirtualHost *:80>
-            ServerName $FQDN
-            ServerName www.$FQDN
-            DocumentRoot /var/www/$FQDN/public_html
-            ErrorLog /var/www/$FQDN/error.log
-            CustomLog /var/www/$FQDN/requests.log combined
-            </VirtualHost>" >> /etc/httpd/sites-available/$FQDN.conf
-            ln -s /etc/httpd/sites-available/$FQDN.conf /etc/httpd/sites-enabled/$FQDN.conf
+            ServerName test.com
+            ServerName www.test.com
+            DocumentRoot /var/www/test.com/public_html
+            ErrorLog /var/www/test.com/error.log
+            CustomLog /var/www/test.com/requests.log combined
+            </VirtualHost>" >> /etc/httpd/sites-available/test.com.conf
+            ln -s /etc/httpd/sites-available/test.com.conf /etc/httpd/sites-enabled/test.com.conf
             apachectl restart
-            iptables -I INPUT -p tcp --dport 80 -j ACCEPT
-            iptables -I INPUT -p tcp --dport 443 -j ACCEPT
-            service iptables save
           params:
             $FQDN: { get_param: rh_par_fqdn }
             $GLUSTER_INTERNAL_IP: {get_attr: rh_gluster_server, resource.server, first_address}
@@ -283,15 +283,17 @@ resources:
         str_replace:
           template: |
             #!/bin/bash -v
+            yum install -y epel-release wget
             yum update -y
-            yum -y install glusterfs wget
-            mkdir -p /var/www/$FQDN/public_html
-            mount.glusterfs $GLUSTER_INTERNAL_IP:/rh-share /var/www/$FQDN/public_html
-            echo "$GLUSTER_INTERNAL_IP:/rh-share /var/www/$FQDN/public_html glusterfs defaults,_netdev 0 0"
-            wget https://github.com/ukbe/rhelos/raw/master/public_html.tar.gz -p /tmp
-            tar -xzvf /tmp/public_html.tar.gz -C /var/www/$FQDN/public_html
-            mv /var/www/$FQDN/public_html/public_html/* /var/www/$FQDN/public_html/
-            rm -rf /var/www/$FQDN/public_html/public_html
+            wget -P /etc/yum.repos.d/ https://download.gluster.org/pub/gluster/glusterfs/LATEST/EPEL.repo/glusterfs-epel.repo
+            yum -y install glusterfs
+            mkdir -p /var/www/test.com/public_html
+            mount.glusterfs 172.10.0.14:/rh-share /var/www/test.com/public_html
+            echo "172.10.0.14:/rh-share /var/www/test.com/public_html glusterfs defaults,_netdev 0 0"
+            wget -P /tmp/ https://github.com/ukbe/rhelos/raw/master/public_html.tar.gz
+            tar -xzvf /tmp/public_html.tar.gz -C /var/www/test.com/public_html
+            mv /var/www/test.com/public_html/public_html/* /var/www/test.com/public_html/
+            rm -rf /var/www/test.com/public_html/public_html
             chmod -R 755 /var/www
             mkdir /etc/httpd/sites-available
             mkdir /etc/httpd/sites-enabled
@@ -299,17 +301,14 @@ resources:
             yum install -y httpd mod_ssl
             /usr/sbin/apachectl start
             echo "<VirtualHost *:80>
-            ServerName $FQDN
-            ServerName www.$FQDN
-            DocumentRoot /var/www/$FQDN/public_html
-            ErrorLog /var/www/$FQDN/error.log
-            CustomLog /var/www/$FQDN/requests.log combined
-            </VirtualHost>" >> /etc/httpd/sites-available/$FQDN.conf
-            ln -s /etc/httpd/sites-available/$FQDN.conf /etc/httpd/sites-enabled/$FQDN.conf
+            ServerName test.com
+            ServerName www.test.com
+            DocumentRoot /var/www/test.com/public_html
+            ErrorLog /var/www/test.com/error.log
+            CustomLog /var/www/test.com/requests.log combined
+            </VirtualHost>" >> /etc/httpd/sites-available/test.com.conf
+            ln -s /etc/httpd/sites-available/test.com.conf /etc/httpd/sites-enabled/test.com.conf
             apachectl restart
-            iptables -I INPUT -p tcp --dport 80 -j ACCEPT
-            iptables -I INPUT -p tcp --dport 443 -j ACCEPT
-            service iptables save
           params:
             $FQDN: { get_param: rh_par_fqdn }
             $GLUSTER_INTERNAL_IP: {get_attr: rh_gluster_server, resource.server, first_address}
