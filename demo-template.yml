@@ -101,7 +101,7 @@ resources:
 
   rh_gluster_server:
     type: OS::Nova::Server
-    depends_on: [rh_gluster_security_group, rh_root_volume_gl, rh_internal_netport_gl]
+    depends_on: [rh_root_volume_gl, rh_internal_netport_gl]
     properties:
       block_device_mapping:
         - device_name: vda
@@ -133,7 +133,7 @@ resources:
             gluster volume create rh-share $INTERNAL_IP:/gluster_brick force
             gluster volume start rh-share
           params:
-            $INTERNAL_IP: {get_attr: rh_gluster_server, resource.server, first_address}
+            $INTERNAL_IP: {get_attr: [rh_gluster_server, first_address]}
 
   rh_web_server_security_group:
     type: OS::Neutron::SecurityGroup
@@ -202,13 +202,13 @@ resources:
             yum update -y
             wget -P /etc/yum.repos.d/ https://download.gluster.org/pub/gluster/glusterfs/LATEST/EPEL.repo/glusterfs-epel.repo
             yum -y install glusterfs
-            mkdir -p /var/www/test.com/public_html
-            mount.glusterfs 172.10.0.14:/rh-share /var/www/test.com/public_html
-            echo "172.10.0.14:/rh-share /var/www/test.com/public_html glusterfs defaults,_netdev 0 0"
+            mkdir -p /var/www/$FQDN/public_html
+            mount.glusterfs $GLUSTER_INTERNAL_IP:/rh-share /var/www/$FQDN/public_html
+            echo "$GLUSTER_INTERNAL_IP:/rh-share /var/www/$FQDN/public_html glusterfs defaults,_netdev 0 0"
             wget -P /tmp/ https://github.com/ukbe/rhelos/raw/master/public_html.tar.gz
-            tar -xzvf /tmp/public_html.tar.gz -C /var/www/test.com/public_html
-            mv /var/www/test.com/public_html/public_html/* /var/www/test.com/public_html/
-            rm -rf /var/www/test.com/public_html/public_html
+            tar -xzvf /tmp/public_html.tar.gz -C /var/www/$FQDN/public_html
+            mv /var/www/$FQDN/public_html/public_html/* /var/www/$FQDN/public_html/
+            rm -rf /var/www/$FQDN/public_html/public_html
             chmod -R 755 /var/www
             mkdir /etc/httpd/sites-available
             mkdir /etc/httpd/sites-enabled
@@ -216,21 +216,20 @@ resources:
             yum install -y httpd mod_ssl
             /usr/sbin/apachectl start
             echo "<VirtualHost *:80>
-            ServerName test.com
-            ServerName www.test.com
-            DocumentRoot /var/www/test.com/public_html
-            ErrorLog /var/www/test.com/error.log
-            CustomLog /var/www/test.com/requests.log combined
-            </VirtualHost>" >> /etc/httpd/sites-available/test.com.conf
-            ln -s /etc/httpd/sites-available/test.com.conf /etc/httpd/sites-enabled/test.com.conf
+            ServerName $FQDN
+            ServerName www.$FQDN
+            DocumentRoot /var/www/$FQDN/public_html
+            ErrorLog /var/www/$FQDN/error.log
+            CustomLog /var/www/$FQDN/requests.log combined
+            </VirtualHost>" >> /etc/httpd/sites-available/$FQDN.conf
+            ln -s /etc/httpd/sites-available/$FQDN.conf /etc/httpd/sites-enabled/$FQDN.conf
             apachectl restart
           params:
             $FQDN: { get_param: rh_par_fqdn }
-            $GLUSTER_INTERNAL_IP: {get_attr: rh_gluster_server, resource.server, first_address}
+            $GLUSTER_INTERNAL_IP: {get_attr: [rh_gluster_server, first_address]}
 
   rh_floating_ip_1:
     type: OS::Nova::FloatingIP
-    depends_on: [rh_internal_netport_1]
     properties:
       pool: external_network
 
@@ -287,13 +286,13 @@ resources:
             yum update -y
             wget -P /etc/yum.repos.d/ https://download.gluster.org/pub/gluster/glusterfs/LATEST/EPEL.repo/glusterfs-epel.repo
             yum -y install glusterfs
-            mkdir -p /var/www/test.com/public_html
-            mount.glusterfs 172.10.0.14:/rh-share /var/www/test.com/public_html
-            echo "172.10.0.14:/rh-share /var/www/test.com/public_html glusterfs defaults,_netdev 0 0"
+            mkdir -p /var/www/$FQDN/public_html
+            mount.glusterfs $GLUSTER_INTERNAL_IP:/rh-share /var/www/$FQDN/public_html
+            echo "$GLUSTER_INTERNAL_IP:/rh-share /var/www/$FQDN/public_html glusterfs defaults,_netdev 0 0"
             wget -P /tmp/ https://github.com/ukbe/rhelos/raw/master/public_html.tar.gz
-            tar -xzvf /tmp/public_html.tar.gz -C /var/www/test.com/public_html
-            mv /var/www/test.com/public_html/public_html/* /var/www/test.com/public_html/
-            rm -rf /var/www/test.com/public_html/public_html
+            tar -xzvf /tmp/public_html.tar.gz -C /var/www/$FQDN/public_html
+            mv /var/www/$FQDN/public_html/public_html/* /var/www/$FQDN/public_html/
+            rm -rf /var/www/$FQDN/public_html/public_html
             chmod -R 755 /var/www
             mkdir /etc/httpd/sites-available
             mkdir /etc/httpd/sites-enabled
@@ -301,21 +300,20 @@ resources:
             yum install -y httpd mod_ssl
             /usr/sbin/apachectl start
             echo "<VirtualHost *:80>
-            ServerName test.com
-            ServerName www.test.com
-            DocumentRoot /var/www/test.com/public_html
-            ErrorLog /var/www/test.com/error.log
-            CustomLog /var/www/test.com/requests.log combined
-            </VirtualHost>" >> /etc/httpd/sites-available/test.com.conf
-            ln -s /etc/httpd/sites-available/test.com.conf /etc/httpd/sites-enabled/test.com.conf
+            ServerName $FQDN
+            ServerName www.$FQDN
+            DocumentRoot /var/www/$FQDN/public_html
+            ErrorLog /var/www/$FQDN/error.log
+            CustomLog /var/www/$FQDN/requests.log combined
+            </VirtualHost>" >> /etc/httpd/sites-available/$FQDN.conf
+            ln -s /etc/httpd/sites-available/$FQDN.conf /etc/httpd/sites-enabled/$FQDN.conf
             apachectl restart
           params:
             $FQDN: { get_param: rh_par_fqdn }
-            $GLUSTER_INTERNAL_IP: {get_attr: rh_gluster_server, resource.server, first_address}
+            $GLUSTER_INTERNAL_IP: {get_attr: [rh_gluster_server, first_address]}
 
   rh_floating_ip_2:
     type: OS::Nova::FloatingIP
-    depends_on: [rh_internal_netport_2]
     properties:
       pool: external_network
 
