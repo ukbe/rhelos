@@ -1,0 +1,329 @@
+heat_template_version: 2015-04-30
+
+parameters:
+
+
+  rh_par_fqdn:
+    type: string
+    label: FQDN
+    description: Domain name for web site (example.com)
+    default: rhcloud.com
+
+  rh_par_flavor:
+    type: string
+    label: Web Server flavor
+    description: Instance type for web server instances
+    constraints:
+      - allowed_values:
+        - m1.tiny
+        - m1.small
+        - m1.medium
+        - m1.large
+    default: m1.tiny
+
+  rh_par_flavor_gl:
+    type: string
+    label: Gluster Server flavor
+    description: Instance type for gluster server instance
+    constraints:
+      - allowed_values:
+        - m1.tiny
+        - m1.small
+        - m1.medium
+        - m1.large
+    default: m1.tiny
+
+  rh_par_image:
+    type: string
+    label: Instance Image
+    description: Image name for all instances
+    default: CentOS-7-x86_64
+
+  rh_par_keyname:
+    type: string
+    label: Key name
+    description: SSH key name
+    default: default_key
+
+
+
+resources:
+
+  rh_gluster_security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description: Security group for web server instances
+      name: rh_gluster_sg
+      rules:
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 22
+          port_range_max: 22
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: icmp
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 24007
+          port_range_max: 24007
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 49152
+          port_range_max: 49152
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 111
+          port_range_max: 111
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: udp
+          port_range_min: 111
+          port_range_max: 111
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 2049
+          port_range_max: 2049
+
+  rh_root_volume_gl:
+    type: OS::Cinder::Volume
+    properties:
+      size: 10
+      image: { get_param : rh_par_image }
+
+  rh_internal_netport_gl:
+    type: OS::Neutron::Port
+    depends_on: [rh_gluster_security_group]
+    properties:
+      network: internal_network
+      fixed_ips:
+        - subnet: internal_subnet
+      security_groups:
+        - default
+        - rh_gluster_sg
+
+  rh_gluster_server:
+    type: OS::Nova::Server
+    depends_on: [rh_gluster_security_group, rh_root_volume_gl, rh_internal_netport_gl]
+    properties:
+      block_device_mapping:
+        - device_name: vda
+          volume_id: { get_resource: rh_root_volume_gl }
+          delete_on_termination: true
+      flavor: { get_param: rh_par_flavor_gl }
+      key_name: { get_param: rh_par_keyname }
+      name:
+        str_replace:
+          template: 
+            list_join:
+            - { get_param: rh_par_fqdn }
+            - "_1"
+          params:
+            ".": "_"
+      networks:
+        - port: { get_resource: rh_internal_netport_gl }
+      user_data_format: RAW
+      user_data:
+        str_replace:
+          template: |
+            #!/bin/bash -v
+            yum update -y
+            wget -P /etc/yum.repos.d http://download.gluster.org/pub/gluster/glusterfs/LATEST/RHEL/glusterfs-epel.repo
+            yum install -y glusterfs-server
+            mkdir /gluster_brick
+            gluster volume create rh-share replica 1 $INTERNAL_IP:/gluster_brick
+            gluster volume start rh-share
+          params:
+            $FQDN: { get_param: rh_par_fqdn }
+            $INTERNAL_IP: {get_attr: rh_gluster_server, resource.server, first_address}
+
+  rh_web_server_security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description: Security group for web server instances
+      name: rh_web_server_sg
+      rules:
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 22
+          port_range_max: 22
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: icmp
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 80
+          port_range_max: 80
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 443
+          port_range_max: 443
+
+  rh_root_volume_1:
+    type: OS::Cinder::Volume
+    properties:
+      size: 10
+      image: { get_param : rh_par_image }
+
+  rh_internal_netport_1:
+    type: OS::Neutron::Port
+    depends_on: [rh_web_server_security_group]
+    properties:
+      network: internal_network
+      fixed_ips:
+        - subnet: internal_subnet
+      security_groups:
+        - default
+        - rh_web_server_sg
+
+  rh_web_server_1:
+    type: OS::Nova::Server
+    depends_on: [rh_root_volume_1, rh_gluster_server]
+    properties:
+      block_device_mapping:
+        - device_name: vda
+          volume_id: { get_resource: rh_root_volume_1 }
+          delete_on_termination: true
+      flavor: { get_param: rh_par_flavor }
+      key_name: { get_param: rh_par_keyname }
+      name:
+        str_replace:
+          template: 
+            list_join:
+            - { get_param: rh_par_fqdn }
+            - "_1"
+          params:
+            ".": "_"
+      networks:
+        - port: { get_resource: rh_internal_netport_1 }
+      user_data_format: RAW
+      user_data:
+        str_replace:
+          template: |
+            #!/bin/bash -v
+            yum update -y
+            yum -y install glusterfs wget
+            mkdir -p /var/www/$FQDN/public_html
+            mount.glusterfs $GLUSTER_INTERNAL_IP:/rh-share /var/www/$FQDN/public_html
+            echo "$GLUSTER_INTERNAL_IP:/rh-share /var/www/$FQDN/public_html glusterfs defaults,_netdev 0 0"
+            wget https://github.com/ukbe/rhelos/raw/master/public_html.tar.gz -p /tmp
+            tar -xzvf /tmp/public_html.tar.gz -C /var/www/$FQDN/public_html
+            mv /var/www/$FQDN/public_html/public_html/* /var/www/$FQDN/public_html/
+            rm -rf /var/www/$FQDN/public_html/public_html
+            chmod -R 755 /var/www
+            mkdir /etc/httpd/sites-available
+            mkdir /etc/httpd/sites-enabled
+            echo "IncludeOptional sites-enabled/*.conf" >> /etc/httpd/conf/httpd.conf
+            yum install -y httpd mod_ssl
+            /usr/sbin/apachectl start
+            echo "<VirtualHost *:80>
+            ServerName $FQDN
+            ServerName www.$FQDN
+            DocumentRoot /var/www/$FQDN/public_html
+            ErrorLog /var/www/$FQDN/error.log
+            CustomLog /var/www/$FQDN/requests.log combined
+            </VirtualHost>" >> /etc/httpd/sites-available/$FQDN.conf
+            ln -s /etc/httpd/sites-available/$FQDN.conf /etc/httpd/sites-enabled/$FQDN.conf
+            apachectl restart
+            iptables -I INPUT -p tcp --dport 80 -j ACCEPT
+            iptables -I INPUT -p tcp --dport 443 -j ACCEPT
+            service iptables save
+          params:
+            $FQDN: { get_param: rh_par_fqdn }
+            $GLUSTER_INTERNAL_IP: {get_attr: rh_gluster_server, resource.server, first_address}
+
+  rh_floating_ip_1:
+    type: OS::Nova::FloatingIP
+    depends_on: [rh_internal_netport_1]
+    properties:
+      pool: external_network
+
+  rh_floating_ip_association_1:
+    type: OS::Nova::FloatingIPAssociation
+    depends_on: [rh_web_server_1, rh_floating_ip_1]
+    properties:
+      floating_ip: { get_resource: rh_floating_ip_1 }
+      server_id: { get_resource: rh_web_server_1 }
+
+  rh_root_volume_2:
+    type: OS::Cinder::Volume
+    properties:
+      size: 10
+      image: { get_param : rh_par_image }
+
+  rh_internal_netport_2:
+    type: OS::Neutron::Port
+    depends_on: [rh_web_server_security_group]
+    properties:
+      network: internal_network
+      fixed_ips:
+        - subnet: internal_subnet
+      security_groups:
+        - default
+        - rh_web_server_sg
+
+  rh_web_server_2:
+    type: OS::Nova::Server
+    depends_on: [rh_root_volume_2, rh_gluster_server]
+    properties:
+      block_device_mapping:
+        - device_name: vda
+          volume_id: { get_resource: rh_root_volume_2 }
+          delete_on_termination: true
+      flavor: { get_param: rh_par_flavor }
+      key_name: { get_param: rh_par_keyname }
+      name:
+        str_replace:
+          template: 
+            list_join:
+            - { get_param: rh_par_fqdn }
+            - "_1"
+          params:
+            ".": "_"
+      networks:
+        - port: { get_resource: rh_internal_netport_2 }
+      user_data_format: RAW
+      user_data:
+        str_replace:
+          template: |
+            #!/bin/bash -v
+            yum update -y
+            yum -y install glusterfs wget
+            mkdir -p /var/www/$FQDN/public_html
+            mount.glusterfs $GLUSTER_INTERNAL_IP:/rh-share /var/www/$FQDN/public_html
+            echo "$GLUSTER_INTERNAL_IP:/rh-share /var/www/$FQDN/public_html glusterfs defaults,_netdev 0 0"
+            wget https://github.com/ukbe/rhelos/raw/master/public_html.tar.gz -p /tmp
+            tar -xzvf /tmp/public_html.tar.gz -C /var/www/$FQDN/public_html
+            mv /var/www/$FQDN/public_html/public_html/* /var/www/$FQDN/public_html/
+            rm -rf /var/www/$FQDN/public_html/public_html
+            chmod -R 755 /var/www
+            mkdir /etc/httpd/sites-available
+            mkdir /etc/httpd/sites-enabled
+            echo "IncludeOptional sites-enabled/*.conf" >> /etc/httpd/conf/httpd.conf
+            yum install -y httpd mod_ssl
+            /usr/sbin/apachectl start
+            echo "<VirtualHost *:80>
+            ServerName $FQDN
+            ServerName www.$FQDN
+            DocumentRoot /var/www/$FQDN/public_html
+            ErrorLog /var/www/$FQDN/error.log
+            CustomLog /var/www/$FQDN/requests.log combined
+            </VirtualHost>" >> /etc/httpd/sites-available/$FQDN.conf
+            ln -s /etc/httpd/sites-available/$FQDN.conf /etc/httpd/sites-enabled/$FQDN.conf
+            apachectl restart
+            iptables -I INPUT -p tcp --dport 80 -j ACCEPT
+            iptables -I INPUT -p tcp --dport 443 -j ACCEPT
+            service iptables save
+          params:
+            $FQDN: { get_param: rh_par_fqdn }
+            $GLUSTER_INTERNAL_IP: {get_attr: rh_gluster_server, resource.server, first_address}
+
+  rh_floating_ip_2:
+    type: OS::Nova::FloatingIP
+    depends_on: [rh_internal_netport_2]
+    properties:
+      pool: external_network
+
+  rh_floating_ip_association_2:
+    type: OS::Nova::FloatingIPAssociation
+    depends_on: [rh_web_server_2, rh_floating_ip_2]
+    properties:
+      floating_ip: { get_resource: rh_floating_ip_2 }
+      server_id: { get_resource: rh_web_server_2 }
+
