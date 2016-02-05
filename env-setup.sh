@@ -1,24 +1,21 @@
 #!/bin/bash
 
-#openstack-config --set /etc/neutron/plugins/ml2/ml2_conf.ini ovs bridge_mappings physnet1:br-ex
-
-#service neutron-openvswitch-agent restart
-#service neutron-server restart
-
 # Cinder Configuration (a recent bug from packstack - https://bugzilla.redhat.com/show_bug.cgi?id=1272572)
-sudo openstack-config --set /etc/cinder/cinder.conf keystone_authtoken auth_uri http://192.168.1.10:5000
-sudo openstack-config --set /etc/cinder/cinder.conf keystone_authtoken auth_url http://192.168.1.10:35357
-sudo openstack-config --set /etc/cinder/cinder.conf keystone_authtoken auth_plugin password
-sudo openstack-config --set /etc/cinder/cinder.conf keystone_authtoken project_domain_id default
-sudo openstack-config --set /etc/cinder/cinder.conf keystone_authtoken user_domain_id default
-sudo openstack-config --set /etc/cinder/cinder.conf keystone_authtoken project_name services
-sudo openstack-config --set /etc/cinder/cinder.conf keystone_authtoken username cinder
-sudo openstack-config --set /etc/cinder/cinder.conf keystone_authtoken password cinderkspass
+# Commented out for RHEL 7. Should be enabled for Centos 7
+#sudo openstack-config --set /etc/cinder/cinder.conf keystone_authtoken auth_uri http://192.168.1.10:5000
+#sudo openstack-config --set /etc/cinder/cinder.conf keystone_authtoken auth_url http://192.168.1.10:35357
+#sudo openstack-config --set /etc/cinder/cinder.conf keystone_authtoken auth_plugin password
+#sudo openstack-config --set /etc/cinder/cinder.conf keystone_authtoken project_domain_id default
+#sudo openstack-config --set /etc/cinder/cinder.conf keystone_authtoken user_domain_id default
+#sudo openstack-config --set /etc/cinder/cinder.conf keystone_authtoken project_name services
+#sudo openstack-config --set /etc/cinder/cinder.conf keystone_authtoken username cinder
+#sudo openstack-config --set /etc/cinder/cinder.conf keystone_authtoken password cinderkspass
 
-sudo service openstack-cinder-api restart
-sudo service openstack-cinder-scheduler restart
-sudo service openstack-cinder-volume restart
-sudo service openstack-cinder-backup restart
+# Commented out for RHEL 7. Should be enabled for Centos 7
+#sudo service openstack-cinder-api restart
+#sudo service openstack-cinder-scheduler restart
+#sudo service openstack-cinder-volume restart
+#sudo service openstack-cinder-backup restart
 
 # Load environment variables for admin user
 export OS_USERNAME=admin
@@ -53,9 +50,9 @@ export OS_TENANT_NAME=redhat-cloud-assignment
 export OS_REGION_NAME=RegionOne
 
 # Create tenant network, subnet and router
-neutron net-create private_network
-neutron subnet-create --name private_subnet --allocation-pool start=172.10.0.10,end=172.10.0.250 private_network 172.10.0.0/24
+neutron net-create internal_network
+neutron subnet-create --name internal_subnet --allocation-pool start=172.10.0.10,end=172.10.0.250 private_network 172.10.0.0/24
 neutron router-create rhcloud-router
 neutron router-gateway-set rhcloud-router external_network
-neutron router-interface-add rhcloud-router private_subnet
+neutron router-interface-add rhcloud-router internal_subnet
 
