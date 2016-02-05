@@ -39,7 +39,6 @@ glance --os-image-api-version 2 image-create --name 'Cirros-0.3.3-x86_64' --disk
 openstack project create --description "Red Hat Cloud Assignment Project" redhat-cloud-assignment
 openstack user create --password rhpass rhcloud
 openstack role add --project redhat-cloud-assignment --user rhcloud _member_
-openstack role add --project redhat-cloud-assignment --user rhcloud heat_stack_user
 openstack role add --project redhat-cloud-assignment --user rhcloud heat_stack_owner
 
 # Create external network and subnet
