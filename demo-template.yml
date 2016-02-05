@@ -109,31 +109,21 @@ resources:
           delete_on_termination: true
       flavor: { get_param: rh_par_flavor_gl }
       key_name: { get_param: rh_par_keyname }
-      name:
-        str_replace:
-          template: 
-            list_join:
-            - { get_param: rh_par_fqdn }
-            - "_1"
-          params:
-            ".": "_"
+      name: "glusterfs-server"
       networks:
         - port: { get_resource: rh_internal_netport_gl }
       user_data_format: RAW
-      user_data:
-        str_replace:
-          template: |
-            #!/bin/bash -v
-            yum install -y epel-release
-            yum update -y
-            yum install -y wget
-            wget -P /etc/yum.repos.d/ https://download.gluster.org/pub/gluster/glusterfs/LATEST/EPEL.repo/glusterfs-epel.repo
-            yum install -y glusterfs-server
-            mkdir /gluster_brick
-            gluster volume create rh-share $INTERNAL_IP:/gluster_brick force
-            gluster volume start rh-share
-          params:
-            $INTERNAL_IP: {get_attr: [rh_gluster_server, first_address]}
+      user_data: |
+        #!/bin/bash -v
+        yum install -y epel-release
+        yum update -y
+        yum install -y wget
+        wget -P /etc/yum.repos.d/ https://download.gluster.org/pub/gluster/glusterfs/LATEST/EPEL.repo/glusterfs-epel.repo
+        yum install -y glusterfs-server
+        mkdir /gluster_brick
+        $INTERNAL_IP=`/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}'`
+        gluster volume create rh-share $INTERNAL_IP:/gluster_brick force
+        gluster volume start rh-share
 
   rh_web_server_security_group:
     type: OS::Neutron::SecurityGroup
@@ -183,14 +173,7 @@ resources:
           delete_on_termination: true
       flavor: { get_param: rh_par_flavor }
       key_name: { get_param: rh_par_keyname }
-      name:
-        str_replace:
-          template: 
-            list_join:
-            - { get_param: rh_par_fqdn }
-            - "_1"
-          params:
-            ".": "_"
+      name: "webserver1"
       networks:
         - port: { get_resource: rh_internal_netport_1 }
       user_data_format: RAW
@@ -267,14 +250,7 @@ resources:
           delete_on_termination: true
       flavor: { get_param: rh_par_flavor }
       key_name: { get_param: rh_par_keyname }
-      name:
-        str_replace:
-          template: 
-            list_join:
-            - { get_param: rh_par_fqdn }
-            - "_1"
-          params:
-            ".": "_"
+      name: "webserver2"
       networks:
         - port: { get_resource: rh_internal_netport_2 }
       user_data_format: RAW
